@@ -1,0 +1,5 @@
+# GFA_MICP
+
+Estimate prediction confidence of Bayesian based matrix factorization method through Mondrian inductive conformal prediction
+
+A Bayesian based group factor analysis (GFA) is designed to detect ubiquitous or group-specific latent factors from multi-view biological data. It has been proposed as a multi-view learning to study the interactions between brain regions of interest in functional MRI data and to predict drug response using genomic data. However, how to estimate prediction confidence of GFA remains to be a problem that need to be addressed. Using a conformal prediction framework, we estimate the GFA prediction confidence on classification models for cancer cell line drug sensitivity data. The GDSC cancer cell line data comprising cell growth inhibition (IC50) data of 256 anti-cancer drugs cross 960 different cell lines were investigated. The cell line genomic features including gene expressions, cancer-driven mutations, copy number variations and methylations, and drug related features including 2D topological structural fingerprints and compound target features are used to build multi-view GFA models. 
