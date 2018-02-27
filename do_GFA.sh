@@ -1,4 +1,4 @@
-# please set seeds to macau_nompi prior to analysis
+# please set seeds prior to analysis
 #GE-Mut-CNV-Methylation
 macau_nompi --train both_dim_train_pIC50_fold_1_.sdm --row-prior spikeandslab --col-prior spikeandslab --burnin 1600 --nsamples 401 \
 --num-latent 100 --output-freq 400 --test both_dim_test_pIC50_fold_1_.sdm --output-prefix rst/fold1_genomic_k100_test --row-features ../features/binary/GE.sdm --row-features ../features/binary/Mut.sbm --row-features ../features/binary/Methy.sbm --row-features ../features/binary/CNV.sbm
