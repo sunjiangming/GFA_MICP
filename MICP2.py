@@ -18,7 +18,7 @@ def zeroClassFirst(X,y):
 				y[i] = y[0]; X[i] = X[0]
 				y[0] = yTmp; X[0] = XTmp
 				break
-def computeICPValues(X_properTrain,y_properTrain,X_Test,y_Test,X_calibration,y_calibration):
+def computeICPValues(X_Test,y_Test,X_calibration,y_calibration):
 	# Compute nonconformity scores
 	# The reason for doing this is that libsvm always uses the label of the first training 
 	# example to define the negative side of the decision boundary, unless class labels are -1 and 1.
@@ -27,7 +27,7 @@ def computeICPValues(X_properTrain,y_properTrain,X_Test,y_Test,X_calibration,y_c
 	y_calibrationAlphas = X_calibration
 	conditionZero = ma.masked_less_equal(y_calibration, 0.5)
 	conditionOne = ma.masked_greater(y_calibration, 0.5)
-	if (y_properTrain.max() > y_properTrain.min()): # The higher value response will have the higher decision value.
+	if (y_calibration.max() > y_calibration.min()): # The higher value response will have the higher decision value.
 		alpha_zeros = np.extract(conditionZero.mask,y_calibrationAlphas)
 		alpha_ones = np.extract(conditionOne.mask,-1.0*y_calibrationAlphas) # Negate to create a nonconformity score.	
 	else: # The lower value response will have the higher decision value.
@@ -46,8 +46,8 @@ def computeICPValues(X_properTrain,y_properTrain,X_Test,y_Test,X_calibration,y_c
 	
 	return p_zeros,p_ones
 
-def predictICP(X_properTrain,y_properTrain,X_Test,y_Test,X_Cal,y_Cal):
-		p_0,p_1 = computeICPValues(X_properTrain,y_properTrain,X_Test,y_Test,X_Cal,y_Cal)
+def predictICP(X_Test,y_Test,X_Cal,y_Cal):
+		p_0,p_1 = computeICPValues(X_Test,y_Test,X_Cal,y_Cal)
 		return p_0, p_1
 
 def returnConMatrix(p_0,p_1,y_t,alpha):
@@ -75,22 +75,22 @@ def returnConMatrix(p_0,p_1,y_t,alpha):
 
 def main(argv):
 	#os.chdir("/home/kjtm282/codes/gdsc/cal_test/")
-	propertrainfile = '' #'both_dim_train_pIC50_fold_1_.mtx' # traing set
+	index_Ind = -9 #index of indication
 	testfile = '' #'fold1_GE_k100-sample-400-predictions.csv' # test set
 	calfile = '' #'both_dim_cal_pIC50_fold_1_.mtx' # calibration set
 	outputdir = '' # output directory
 	
 	try:
-		opts, args = getopt.getopt(argv,"hp:t:c:o:",["propertrainfile=","testfile=","calfile=","outputdir="])
+		opts, args = getopt.getopt(argv,"hi:t:c:o:",["index_Ind=","propertrainfile=","testfile=","calfile=","outputdir="])
 	except getopt.GetoptError:
-		print("micp.py -p <propertrainfile> -t <testfile> -c <calfile> -o <outputdir>")
+		print("micp.py -i <index_Ind> -t <testfile> -c <calfile> -o <outputdir>")
 		sys.exit(2)
 	for opt, arg in opts:
 		if opt == '-h':
-		 print("micp.py -p <propertrainfile> -t <testfile> -c <calfile> -o <outputdir>")
+		 print("micp.py -i <index_Ind> -t <testfile> -c <calfile> -o <outputdir>")
 		 sys.exit()
-		elif opt in ("-p", "--propertrainfile"):
-			propertrainfile = arg
+		elif opt in ("-i", "--index_Ind"):
+			index_Ind = int(arg)
 		elif opt in ("-t", "--testfile"):
 			testfile = arg
 		elif opt in ("-c", "--calfile"):
@@ -108,49 +108,54 @@ def main(argv):
 	# path to calibration, test and traing sets
 	df_cal = pd.read_csv(calfile,sep=",")
 	df_test = pd.read_csv(testfile,sep=",").as_matrix()
-	df_train = pd.read_csv(propertrainfile,sep=" ")
-
-	#train
-	#df_properTrain=df_train[pd.merge(df_train, df_cal, how='left',on=['row','col']).isnull().any(axis=1)]
-	df_properTrain=df_train
-  y_properTrain=1.0*(df_properTrain).values.reshape(-1,1)
-	X_properTrain=y_properTrain
 	
-  #test
+	df_cal=df_cal[df_cal[:,1]==index_Ind,]
+	df_test=df_test[df_test[:,1]==index_Ind,]
+	
+	#test
 	y_Test=1.0*(df_test[:,2])
 	X_Test=df_test[:,3].reshape(-1,1)
 	#calibration
 	y_Cal=1.0*(df_cal['y']).values.reshape(-1,1)
 	X_Cal=df_cal['y_p'].values.reshape(-1,1)
 
-	p_0_ICP, p_1_ICP = predictICP(X_properTrain,y_properTrain,X_Test,y_Test,X_Cal,y_Cal)
+	p_0_ICP, p_1_ICP = predictICP(X_Test,y_Test,X_Cal,y_Cal)
 
 	output=np.hstack((df_test[:,0:4], p_0_ICP, p_1_ICP))
-	fheader="Cell\tDrug\ty\ty_pred\tp_0_ICP\tp_0_ICP"
+	fheader="Row\tCol\ty\ty_pred\tp_0_ICP\tp_0_ICP"
 	np.savetxt(outputdir+'/GFA_MICP_pred_rst.txt',output,fmt='%0.3f', delimiter='\t',header=fheader)
-
-	fdr=-999*np.ones(100)
-	k=-999*np.ones(100)
-	g=-999*np.ones(100)
-	val = -999*np.ones(100)
-	val0 = -999*np.ones(100)
-	val1 = -999*np.ones(100)
-	efficiency = -999*np.ones(100)
+	
+	tpr=-999*np.ones(1000)
+	fpr=-999*np.ones(1000)
+	fdr=-999*np.ones(1000)
+	k=-999*np.ones(1000)
+	g=-999*np.ones(1000)
+	val = -999*np.ones(1000)
+	val0 = -999*np.ones(1000)
+	val1 = -999*np.ones(1000)
+	efficiency = -999*np.ones(1000)
 	i=0
-	alpha_ranges=np.linspace(0.0001,0.5,100)
+	alpha_ranges=np.linspace(0.0001,1.0,1000)
 	for alpha in alpha_ranges:
 		tp, fp, tn, fn, uncertains, emptys, val[i], val0[i], val1[i],efficiency[i] = returnConMatrix(p_0_ICP,p_1_ICP,y_Test.reshape(-1,1),alpha)
 		sn = 1.0*tp/max(fn+tp,1)
 		sp = 1.0*tn/max(fp+tn,1)
 		acc = ((tp+tn)/max(tp+tn+fp+fn,1.0))
+		
+		tpr[i]=sn
+		fpr[i]=1.0*fp/max(fp+tn,1.0)
+		tpr_all[i]=1.0*(tp+tn)/max(tp+tn+fp+fn,1.0)
+		fpr_all[i]=1.0*fp/max(fp+tn,1.0)
+		
 		if (tp+tn+fp+fn+0.0) > 0 :
 			fdr[i] = (fp/max(fp+tp,1.0))
 			cp=( (fp+tp+0.0)*(tp+fn) + (fn+tn)*(fp+tn+0.0) )/((tp+tn+fp+fn+0.0)**2)
 			k[i] = (acc-cp)/(1.0-cp)
 			g[i] = 1.0*(sn*sp)**0.5
 		i+=1
+	metrics.auc(fpr, tpr)
 	metrics=np.vstack((alpha_ranges,k,g,val,val0,val1,efficiency)).T
-	fheader="Alpha\tKappa\tG-mean\tValidity_all\ttValidity_neg\ttValidity_pos\tefficiency"
+	fheader="Alpha\tKappa\tG-mean\tValidity_all\tValidity_neg\ttValidity_pos\tefficiency"
 	np.savetxt(outputdir+'/GFA_MICP_metrics.txt',metrics,fmt='%0.3f', delimiter='\t',header=fheader)
 		
 #	alpha_ranges=np.linspace(0.0001,0.5,100)
